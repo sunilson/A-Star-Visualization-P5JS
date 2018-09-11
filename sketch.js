@@ -10,10 +10,16 @@ let openList = []
 let closedList = []
 let finalPath = []
 let running = false
+let allowDiagonal = true
 
-class Path {
-
+if (confirm('Allow diagonal paths?')) {
+    allowDiagonal = true
+} else {
+    allowDiagonal = false
 }
+
+const difficulty = parseFloat(prompt("Enter difficulty between 0 (impossible) and 1.0 (easy)", "0.7")) || 0.7
+const speed = parseInt(prompt("Enter computation cycles per frame", "1")) || 1
 
 //Helper class for all points
 class Point {
@@ -75,7 +81,7 @@ function setup() {
     for (let i = 0; i < rows; i++) {
         values.push([])
         for (let j = 0; j < columns; j++) {
-            (Math.random() < 0.6) ? values[i].push(0): values[i].push(1)
+            (Math.random() < difficulty) ? values[i].push(0): values[i].push(1)
         }
     }
 }
@@ -135,7 +141,9 @@ function draw() {
     })
 
     if (running) {
-        findPath()
+        for (let i = 0; i < speed; i++) {
+            if (!findPath()) break
+        }
     }
 }
 
@@ -160,50 +168,64 @@ function findPath() {
     if (openList.length == 0) {
         alert("NO PATH COULD BE FOUND")
         reset()
+        return false
     } else {
         const lowest = getMinFPoint()
         if (lowest.comparePoint(endPoint)) {
             endPoint.parent = lowest
             calculateFinalPath()
+            return false
         } else {
             removeFromOpenList(lowest)
             closedList.push(lowest)
             addSurroundingsToOpenList(lowest)
+            return true
         }
     }
 }
 
 //Looks at all surrounding fields
 function addSurroundingsToOpenList(point) {
-    //Get all walkable neighbour fields
-    for (let i = Math.max(0, point.x - 1); i <= Math.min(point.x + 1, columns - 1); i++) {
-        for (let j = Math.max(0, point.y - 1); j <= Math.min(point.y + 1, rows - 1); j++) {
-            if ((i != point.x || j != point.y) && values[j][i] != 1) {
-                //Create new point with correct G weight
-                let newPoint = (i == point.x || j == point.y) ? new Point(i, j, point, point.G + 10) : new Point(i, j, point, point.G + 14)
-
-                //Check if already in open or closed list
-                let oldOpen = isInOpenList(newPoint)
-                let oldClosed = isInClosedList(newPoint)
-
-                //If already in open list
-                if (oldOpen) {
-                    //Check if G score is lower if we go over current square instead of original parent
-                    if (oldOpen.G > newPoint.G) {
-                        //Change parent and therefore G weight
-                        oldOpen.parent = point
-                        oldOpen.G = (i == point.x || j == point.y) ? point.G + 10 : point.G + 14
-                    }
-                } else if (!oldOpen && !oldClosed) {
-                    //Not in open and not in closed list
-
-                    //Calculate H Weight
-                    newPoint.calculateHWeight(endPoint)
-
-                    //Add to open List
-                    openList.push(newPoint)
-                }
+    if (allowDiagonal) {
+        //Get all walkable neighbour fields
+        for (let i = Math.max(0, point.x - 1); i <= Math.min(point.x + 1, columns - 1); i++) {
+            for (let j = Math.max(0, point.y - 1); j <= Math.min(point.y + 1, rows - 1); j++) {
+                handleNeighbour(i, j, point)
             }
+        }
+    } else {
+        if (point.y > 0) handleNeighbour(point.x, point.y - 1, point)
+        if (point.x > 0) handleNeighbour(point.x - 1, point.y, point)
+        if (point.x < columns - 1) handleNeighbour(point.x + 1, point.y, point)
+        if (point.y < rows - 1) handleNeighbour(point.x, point.y + 1, point)
+    }
+}
+
+function handleNeighbour(x, y, point) {
+    if ((x != point.x || y != point.y) && values[y][x] != 1) {
+        //Create new point with correct G weight
+        let newPoint = (x == point.x || y == point.y) ? new Point(x, y, point, point.G + 10) : new Point(x, y, point, point.G + 14)
+
+        //Check if already in open or closed list
+        let oldOpen = isInOpenList(newPoint)
+        let oldClosed = isInClosedList(newPoint)
+
+        //If already in open list
+        if (oldOpen) {
+            //Check if G score is lower if we go over current square instead of original parent
+            if (oldOpen.G > newPoint.G) {
+                //Change parent and therefore G weight
+                oldOpen.parent = point
+                oldOpen.G = (x == point.x || y == point.y) ? point.G + 10 : point.G + 14
+            }
+        } else if (!oldOpen && !oldClosed) {
+            //Not in open and not in closed list
+
+            //Calculate H Weight
+            newPoint.calculateHWeight(endPoint)
+
+            //Add to open List
+            openList.push(newPoint)
         }
     }
 }
